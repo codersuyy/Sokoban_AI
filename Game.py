@@ -7,75 +7,48 @@ def load_levels_from_file(filename):
 
     levels = []
     current_level = []
-    max_cols = 0
-
     for line in lines:
         if line.strip() == "":
             if current_level:
-                # Chuẩn hóa độ dài dòng
-                for row in current_level:
-                    row.extend(['.'] * (max_cols - len(row)))
                 levels.append(current_level)
                 current_level = []
-                max_cols = 0
         else:
-            row = list(line)
-            max_cols = max(max_cols, len(row))
-            current_level.append(row)
-
+            current_level.append(list(line))
     if current_level:
-        for row in current_level:
-            row.extend(['.'] * (max_cols - len(row)))
         levels.append(current_level)
-
     return levels
 
-
-# ====== Menu chọn level ======
-def show_level_menu(level_count):
-    print("Chọn level để chơi:")
-    for i in range(level_count):
-        print(f"{i + 1}. Level {i + 1}")
-    while True:
-        try:
-            choice = int(input("Nhập số level: "))
-            if 1 <= choice <= level_count:
-                return choice - 1
-        except:
-            pass
-        print("Vui lòng nhập lại.")
-
-# ====== Game chính ======
-def run_game(level_map_raw):
+# ====== Chạy game với một level cụ thể ======
+def run_game(level_index):
     pygame.init()
 
-    WHITE = (255, 255, 255)
-    BLACK = (0, 0, 0)
-    # Kích thước bản đồ
+    # Load bản đồ
+    levels = load_levels_from_file("Sokoban_AI/maps.txt")
+    level_map_raw = levels[level_index]
+
     rows = len(level_map_raw)
     cols = len(level_map_raw[0])
-
-    # Tính TILE_SIZE trước, rồi suy ra WIDTH/HEIGHT dựa vào số dòng và cột
-    TILE_SIZE = min(80, 600 // rows, 400 // cols)  # giới hạn kích thước ô để không quá to
+    TILE_SIZE = min(80, 600 // rows, 400 // cols)
     WIDTH = cols * TILE_SIZE
-    HEIGHT = rows * TILE_SIZE + 50  # thêm khoảng top bar 50px
+    HEIGHT = rows * TILE_SIZE + 50
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Sokoban")
 
-    # Tải và điều chỉnh kích thước hình ảnh
-    player_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/character.png"), (TILE_SIZE, TILE_SIZE))
-    box_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/box.png"), (TILE_SIZE, TILE_SIZE))
-    tile_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/tile.png"), (TILE_SIZE, TILE_SIZE))
-    wall_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/wall.png"), (TILE_SIZE, TILE_SIZE))
-    target_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/goal.png"), (TILE_SIZE, TILE_SIZE))
+    # Màu
+    WHITE, BLACK = (255, 255, 255), (0, 0, 0)
 
-    # Tạo bản đồ nền & bản đồ đối tượng
-    level_map_base = []
-    level_map = []
+    # Hình ảnh
+    player_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/character.png"), (TILE_SIZE, TILE_SIZE))
+    box_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/box.png"), (TILE_SIZE, TILE_SIZE))
+    tile_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/tile.png"), (TILE_SIZE, TILE_SIZE))
+    wall_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/wall.png"), (TILE_SIZE, TILE_SIZE))
+    target_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/goal.png"), (TILE_SIZE, TILE_SIZE))
+
+    # Xử lý bản đồ
+    level_map_base, level_map = [], []
     for row in level_map_raw:
-        base_row = []
-        obj_row = []
+        base_row, obj_row = [], []
         for cell in row:
             if cell == "W":
                 base_row.append("W")
@@ -104,10 +77,9 @@ def run_game(level_map_raw):
 
     def move(dx, dy):
         px, py = find_player()
-        nx, ny = px + dx, py + dy         # đúng trục (x là hàng, y là cột)
-        bx, by = px + 2*dx, py + 2*dy     # vị trí sau thùng
+        nx, ny = px + dx, py + dy
+        bx, by = px + 2*dx, py + 2*dy
 
-    # Kiểm tra ra ngoài bản đồ
         if not (0 <= nx < len(level_map) and 0 <= ny < len(level_map[0])):
             return
         if level_map_base[nx][ny] == "W":
@@ -155,6 +127,7 @@ def run_game(level_map_raw):
                     return False
         return True
 
+    # Vòng lặp game
     running, won = True, False
     while running:
         screen.fill(WHITE)
@@ -172,21 +145,14 @@ def run_game(level_map_raw):
                 running = False
             elif event.type == pygame.KEYDOWN and not won:
                 if event.key == pygame.K_LEFT:
-                    move(0, -1)    # đi sang trái
+                    move(0, -1)
                 elif event.key == pygame.K_RIGHT:
-                    move(0, 1)     # đi sang phải
+                    move(0, 1)
                 elif event.key == pygame.K_UP:
-                    move(-1, 0)    # đi lên (giảm hàng)
+                    move(-1, 0)
                 elif event.key == pygame.K_DOWN:
-                    move(1, 0)     # đi xuống (tăng hàng)
-
+                    move(1, 0)
 
         pygame.display.update()
 
     pygame.quit()
-
-# ====== Main chạy chương trình ======
-if __name__ == "__main__":
-    levels = load_levels_from_file("Sokoban_AI/maps.txt")
-    level_index = show_level_menu(len(levels))
-    run_game(levels[level_index])
