@@ -14,65 +14,121 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
 # Load hình ảnh
-player_img = pygame.image.load(r"Sokoban_AI/character.png")  # Nhân vật
-box_img = pygame.image.load(r"Sokoban_AI/box.png")  # Hộp
-tile_img = pygame.image.load(r"Sokoban_AI/tile.png")  # Gạch nền
-wall_img = pygame.image.load(r"Sokoban_AI/wall.png")  # Tường
-target_img = pygame.image.load(r"Sokoban_AI/goal.png")  # Điểm đích
-box_target_img = pygame.image.load(r"Sokoban_AI/box.png")  # Hộp trên điểm đích
+player_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/character.png"), (TILE_SIZE, TILE_SIZE))
+box_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/box.png"), (TILE_SIZE, TILE_SIZE))
+tile_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/tile.png"), (TILE_SIZE, TILE_SIZE))
+wall_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/wall.png"), (TILE_SIZE, TILE_SIZE))
+target_img = pygame.transform.scale(pygame.image.load(r"Sokoban_AI/img/goal.png"), (TILE_SIZE, TILE_SIZE))
+box_target_img = box_img  # Nếu có hình riêng cho box + goal thì thay ở đây
 
-# Điều chỉnh kích thước ảnh
-player_img = pygame.transform.scale(player_img, (TILE_SIZE, TILE_SIZE))
-box_img = pygame.transform.scale(box_img, (TILE_SIZE, TILE_SIZE))
-tile_img = pygame.transform.scale(tile_img, (TILE_SIZE, TILE_SIZE))
-wall_img = pygame.transform.scale(wall_img, (TILE_SIZE, TILE_SIZE))
-target_img = pygame.transform.scale(target_img, (TILE_SIZE, TILE_SIZE))
-box_target_img = pygame.transform.scale(box_target_img, (TILE_SIZE, TILE_SIZE))
-
-# Cập nhật bản đồ có điểm đích "T"
-level_map = [
+# Bản đồ nền để nhớ ô gốc (".", "T", "W")
+level_map_base = [
     ["W", "W", "W", "W", "W"],
     ["W", ".", ".", "T", "W"],
-    ["W", ".", "B", ".", "W"],
-    ["W", ".", "P", ".", "W"],
+    ["W", ".", ".", ".", "W"],
+    ["W", ".", ".", ".", "W"],
     ["W", "W", "W", "W", "W"],
 ]
 
-# Hàm vẽ thanh điều khiển
+# Bản đồ động hiển thị vật thể (người, hộp)
+level_map = [
+    ["", "", "", "", ""],
+    ["", "", "", "", ""],
+    ["", "", "B", "", ""],
+    ["", "", "P", "", ""],
+    ["", "", "", "", ""],
+]
+
+# Tìm vị trí người chơi
+def find_player():
+    for r in range(len(level_map)):
+        for c in range(len(level_map[r])):
+            if level_map[r][c] == "P":
+                return r, c
+    return None
+
+# Di chuyển người chơi
+def move(dx, dy):
+    px, py = find_player()
+    nx, ny = px + dy, py + dx
+    bx, by = nx + dy, ny + dx
+
+    if level_map_base[nx][ny] == "W":
+        return  # Không đi vào tường
+
+    if level_map[nx][ny] == "B":
+        if level_map_base[bx][by] != "W" and level_map[bx][by] == "":
+            level_map[bx][by] = "B"
+            level_map[nx][ny] = "P"
+            level_map[px][py] = ""
+    elif level_map[nx][ny] == "":
+        level_map[nx][ny] = "P"
+        level_map[px][py] = ""
+
+# Vẽ thanh tiêu đề
 def draw_top_bar():
     pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, 50))
     font = pygame.font.Font(None, 30)
     text = font.render("LEVEL 1", True, WHITE)
     screen.blit(text, (WIDTH // 2 - 40, 15))
 
-# Hàm vẽ bàn chơi
+# Vẽ bàn chơi
 def draw_board():
-    for row in range(len(level_map)):
-        for col in range(len(level_map[row])):
-            x, y = col * TILE_SIZE, row * TILE_SIZE + 50
-            if level_map[row][col] == "W":
+    for r in range(len(level_map_base)):
+        for c in range(len(level_map_base[r])):
+            x, y = c * TILE_SIZE, r * TILE_SIZE + 50
+
+            base_tile = level_map_base[r][c]
+            if base_tile == "W":
                 screen.blit(wall_img, (x, y))
-            elif level_map[row][col] == ".":
+            elif base_tile == ".":
                 screen.blit(tile_img, (x, y))
-            elif level_map[row][col] == "T":
+            elif base_tile == "T":
                 screen.blit(target_img, (x, y))
-            elif level_map[row][col] == "B":
-                screen.blit(tile_img, (x, y))
-                screen.blit(box_img, (x, y))
-            elif level_map[row][col] == "P":
-                screen.blit(tile_img, (x, y))
+
+            obj = level_map[r][c]
+            if obj == "B":
+                if base_tile == "T":
+                    screen.blit(box_target_img, (x, y))
+                else:
+                    screen.blit(box_img, (x, y))
+            elif obj == "P":
                 screen.blit(player_img, (x, y))
 
-# Vòng lặp game
+# Kiểm tra thắng game
+def check_win():
+    for r in range(len(level_map)):
+        for c in range(len(level_map[r])):
+            if level_map_base[r][c] == "T" and level_map[r][c] != "B":
+                return False
+    return True
+
+# Vòng lặp chính
 running = True
+won = False
 while running:
     screen.fill(WHITE)
     draw_top_bar()
     draw_board()
 
+    if check_win():
+        font = pygame.font.Font(None, 40)
+        text = font.render("YOU WIN!", True, (0, 200, 0))
+        screen.blit(text, (WIDTH // 2 - 80, HEIGHT // 2))
+        won = True
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN and not won:
+            if event.key == pygame.K_LEFT:
+                move(-1, 0)
+            elif event.key == pygame.K_RIGHT:
+                move(1, 0)
+            elif event.key == pygame.K_UP:
+                move(0, -1)
+            elif event.key == pygame.K_DOWN:
+                move(0, 1)
 
     pygame.display.update()
 
