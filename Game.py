@@ -1,158 +1,168 @@
 import pygame
+import sys
 
-# ====== Đọc file bản đồ từ maps.txt ======
-def load_levels_from_file(filename):
-    with open(filename, "r") as f:
-        lines = f.read().splitlines()
+pygame.init()
+screen = pygame.display.set_mode((400, 600))
+pygame.display.set_caption("Sokoban")
 
-    levels = []
-    current_level = []
-    for line in lines:
-        if line.strip() == "":
-            if current_level:
-                levels.append(current_level)
-                current_level = []
-        else:
-            current_level.append(list(line))
-    if current_level:
-        levels.append(current_level)
-    return levels
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (100, 100, 100)
+BLUE = (40, 40, 200)
 
-# ====== Chạy game với một level cụ thể ======
-def run_game(level_index):
-    pygame.init()
+font_title = pygame.font.SysFont(None, 60)
+font_option = pygame.font.SysFont(None, 36)
+font_text = pygame.font.SysFont(None, 28)
+font_back = pygame.font.SysFont(None, 32)
 
-    # Load bản đồ
-    levels = load_levels_from_file("Sokoban_AI/maps.txt")
-    level_map_raw = levels[level_index]
+menu_items = ["Play", "Instruction", "Quit"]
 
-    rows = len(level_map_raw)
-    cols = len(level_map_raw[0])
-    TILE_SIZE = min(80, 600 // rows, 400 // cols)
-    WIDTH = cols * TILE_SIZE
-    HEIGHT = rows * TILE_SIZE + 50
 
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Sokoban")
+def render_menu(highlight_index=None):
+    screen.fill(WHITE)
 
-    # Màu
-    WHITE, BLACK = (255, 255, 255), (0, 0, 0)
+    # Title
+    title_surface = font_title.render("SOKOBAN", True, BLACK)
+    screen.blit(title_surface, (
+        screen.get_width() // 2 - title_surface.get_width() // 2, 100))
 
-    # Hình ảnh
-    player_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/character.png"), (TILE_SIZE, TILE_SIZE))
-    box_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/box.png"), (TILE_SIZE, TILE_SIZE))
-    tile_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/tile.png"), (TILE_SIZE, TILE_SIZE))
-    wall_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/wall.png"), (TILE_SIZE, TILE_SIZE))
-    target_img = pygame.transform.scale(pygame.image.load("Sokoban_AI/img/goal.png"), (TILE_SIZE, TILE_SIZE))
+    # Menu items
+    for i, item in enumerate(menu_items):
+        color = GRAY if i == highlight_index else BLACK
+        text_surface = font_option.render(item, True, color)
+        x = screen.get_width() // 2 - text_surface.get_width() // 2
+        y = 200 + i * 60
+        screen.blit(text_surface, (x, y))
 
-    # Xử lý bản đồ
-    level_map_base, level_map = [], []
-    for row in level_map_raw:
-        base_row, obj_row = [], []
-        for cell in row:
-            if cell == "W":
-                base_row.append("W")
-                obj_row.append("")
-            elif cell == "T":
-                base_row.append("T")
-                obj_row.append("")
-            elif cell == ".":
-                base_row.append(".")
-                obj_row.append("")
-            elif cell == "B":
-                base_row.append(".")
-                obj_row.append("B")
-            elif cell == "P":
-                base_row.append(".")
-                obj_row.append("P")
-        level_map_base.append(base_row)
-        level_map.append(obj_row)
+    pygame.display.flip()
 
-    def find_player():
-        for r in range(len(level_map)):
-            for c in range(len(level_map[r])):
-                if level_map[r][c] == "P":
-                    return r, c
-        return None
 
-    def move(dx, dy):
-        px, py = find_player()
-        nx, ny = px + dx, py + dy
-        bx, by = px + 2*dx, py + 2*dy
+def get_hovered_index(pos):
+    for i, item in enumerate(menu_items):
+        text_surface = font_option.render(item, True, BLACK)
+        x = screen.get_width() // 2 - text_surface.get_width() // 2
+        y = 200 + i * 60
+        w, h = text_surface.get_size()
+        rect = pygame.Rect(x, y, w, h)
+        if rect.collidepoint(pos):
+            return i
+    return None
 
-        if not (0 <= nx < len(level_map) and 0 <= ny < len(level_map[0])):
-            return
-        if level_map_base[nx][ny] == "W":
-            return
 
-        if level_map[nx][ny] == "B":
-            if not (0 <= bx < len(level_map) and 0 <= by < len(level_map[0])):
-                return
-            if level_map_base[bx][by] != "W" and level_map[bx][by] == "":
-                level_map[bx][by] = "B"
-                level_map[nx][ny] = "P"
-                level_map[px][py] = ""
-        elif level_map[nx][ny] == "":
-            level_map[nx][ny] = "P"
-            level_map[px][py] = ""
+def show_instructions():
+    pygame.display.set_caption("Instructions")
 
-    def draw_top_bar():
-        pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, 50))
-        font = pygame.font.Font(None, 30)
-        text = font.render("SOKOBAN", True, WHITE)
-        screen.blit(text, (WIDTH // 2 - 50, 15))
+    instructions = [
+        "How to Play Sokoban:",
+        "- Use arrow keys or WASD to move your character.",
+        "- Push all the boxes onto the target spots (marked with circles).",
+        "- You can only push boxes — not pull them.",
+        "- Use the 'U' key to undo your last move.",
+        "- Press 'R' to reset the level and try again.",
+        "Tip: Think ahead! You can get stuck easily.",
+        "Your goal is to place all boxes correctly with the fewest moves.",
+    ]
 
-    def draw_board():
-        for r in range(len(level_map_base)):
-            for c in range(len(level_map_base[r])):
-                x, y = c * TILE_SIZE, r * TILE_SIZE + 50
-                base = level_map_base[r][c]
-                if base == "W":
-                    screen.blit(wall_img, (x, y))
-                elif base == ".":
-                    screen.blit(tile_img, (x, y))
-                elif base == "T":
-                    screen.blit(target_img, (x, y))
+    back_text = "Back"
+    back_rect = None
 
-                obj = level_map[r][c]
-                if obj == "B":
-                    screen.blit(box_img, (x, y))
-                elif obj == "P":
-                    screen.blit(player_img, (x, y))
-
-    def check_win():
-        for r in range(len(level_map)):
-            for c in range(len(level_map[r])):
-                if level_map_base[r][c] == "T" and level_map[r][c] != "B":
-                    return False
-        return True
-
-    # Vòng lặp game
-    running, won = True, False
-    while running:
+    def render(back_hovered=False):
         screen.fill(WHITE)
-        draw_top_bar()
-        draw_board()
 
-        if check_win():
-            font = pygame.font.Font(None, 40)
-            text = font.render("YOU WIN!", True, (0, 200, 0))
-            screen.blit(text, (WIDTH // 2 - 80, HEIGHT // 2))
-            won = True
+        # Title
+        title_surf = font_title.render("INSTRUCTIONS", True, BLACK)
+        screen.blit(title_surf, (screen.get_width() // 2 - title_surf.get_width() // 2, 40))
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN and not won:
-                if event.key == pygame.K_LEFT:
-                    move(0, -1)
-                elif event.key == pygame.K_RIGHT:
-                    move(0, 1)
-                elif event.key == pygame.K_UP:
-                    move(-1, 0)
-                elif event.key == pygame.K_DOWN:
-                    move(1, 0)
+        # Instruction body
+        y = 110
+        margin_x = 20
+        line_spacing = 28
 
-        pygame.display.update()
+        for line in instructions:
+            if len(line) == 0:
+                y += line_spacing
+                continue
 
-    pygame.quit()
+            words = line.split(" ")
+            current_line = ""
+            for word in words:
+                test_line = current_line + word + " "
+                test_surface = font_text.render(test_line, True, BLACK)
+                if test_surface.get_width() > screen.get_width() - 2 * margin_x:
+                    surface = font_text.render(current_line.strip(), True, BLACK)
+                    screen.blit(surface, (margin_x, y))
+                    y += line_spacing
+                    current_line = word + " "
+                else:
+                    current_line = test_line
+            if current_line:
+                surface = font_text.render(current_line.strip(), True, BLACK)
+                screen.blit(surface, (margin_x, y))
+                y += line_spacing
+
+        # Back button
+        nonlocal back_rect
+        color = BLUE if back_hovered else BLACK
+        back_surf = font_back.render(back_text, True, color)
+        back_x = 20
+        back_y = screen.get_height() - 60
+        screen.blit(back_surf, (back_x, back_y))
+        back_rect = pygame.Rect(back_x, back_y, back_surf.get_width(), back_surf.get_height())
+
+        pygame.display.flip()
+
+    render()
+
+    # Wait for user to click "Back"
+    while True:
+        event = pygame.event.wait()
+
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        elif event.type == pygame.MOUSEMOTION:
+            if back_rect and back_rect.collidepoint(event.pos):
+                render(back_hovered=True)
+            else:
+                render(back_hovered=False)
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1 and back_rect and back_rect.collidepoint(event.pos):
+                break
+
+
+def main_menu():
+    highlight = None
+    render_menu()
+
+    while True:
+        event = pygame.event.wait()
+
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        elif event.type == pygame.MOUSEMOTION:
+            hovered = get_hovered_index(event.pos)
+            if hovered != highlight:
+                highlight = hovered
+                render_menu(highlight)
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            clicked_index = get_hovered_index(event.pos)
+            if clicked_index is not None:
+                choice = menu_items[clicked_index]
+                if choice == "Play":
+                    print("➡ Enter level selection (to be implemented)")
+                    # You can call show_level_selection() here in future
+                elif choice == "Instruction":
+                    show_instructions()
+                    render_menu(highlight)
+                elif choice == "Quit":
+                    pygame.quit()
+                    sys.exit()
+
+
+# Start the program
+main_menu()
