@@ -9,9 +9,7 @@ SCREEN_HEIGHT = 700
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Sokoban")
 FONT = pygame.font.SysFont("Arial", 30)
-
 TILE_SIZE = 60
-
 SYMBOLS = {
     "#": "wall.png",
     " ": "floor.png",
@@ -33,11 +31,9 @@ def load_levels():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
     with open(path, "r", encoding="utf-8") as f:
         lines = [line.rstrip("\n") for line in f]
-
     unlocked = int(lines[0])
     levels = []
     current = []
-
     for line in lines[1:]:
         if line == "":
             if current:
@@ -47,14 +43,147 @@ def load_levels():
             current.append(line)
     if current:
         levels.append(current)
-
     return unlocked, levels
+
+def handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect, move_history, base_map, obj_map, level_data):
+    if menu_rect.collidepoint(event.pos):
+        level_select()
+    elif undo_rect.collidepoint(event.pos) and move_history:
+        obj_map = move_history.pop() 
+        return obj_map, -1, move_history 
+    elif restart_rect.collidepoint(event.pos):
+        base_map, obj_map = split_maps(level_data)
+        move_history.clear()
+        return obj_map, 0, move_history
+    elif AI_rect.collidepoint(event.pos):
+        level_select()
+    return obj_map, None, move_history
+
+def handle_key_events(event, base_map, obj_map, step_counter, move_history):
+    move_made = False
+    if event.key == pygame.K_LEFT:
+        move_made, move_history = move(base_map, obj_map, -1, 0, move_history)
+    elif event.key == pygame.K_RIGHT:
+        move_made, move_history = move(base_map, obj_map, 1, 0, move_history)
+    elif event.key == pygame.K_UP:
+        move_made, move_history = move(base_map, obj_map, 0, -1, move_history)
+    elif event.key == pygame.K_DOWN:
+        move_made, move_history = move(base_map, obj_map, 0, 1, move_history)
+    if move_made:
+        step_counter += 1
+    return step_counter, move_history
+
+def move(base_map, obj_map, dx, dy, move_history):
+    x, y = find_player(obj_map)
+    nx, ny = x + dx, y + dy
+    nnx, nny = x + dx*2, y + dy*2
+    if obj_map[ny][nx] == " " and base_map[ny][nx] != "#":
+        move_history.append([row[:] for row in obj_map]) 
+        obj_map[y][x] = " "
+        obj_map[ny][nx] = "@"
+        return True, move_history
+    elif obj_map[ny][nx] == "$" and base_map[nny][nnx] != "#" and obj_map[nny][nnx] == " ":
+        move_history.append([row[:] for row in obj_map]) 
+        obj_map[y][x] = " "
+        obj_map[ny][nx] = "@"
+        obj_map[nny][nnx] = "$"
+        return True, move_history
+    return False, move_history
+
+def is_completed(base_map, obj_map):
+    for y in range(len(base_map)):
+        for x in range(len(base_map[0])):
+            if base_map[y][x] == "." and obj_map[y][x] != "$":
+                return False
+    return True
+
+def split_maps(level_data):
+    base_map = []
+    obj_map = []
+    mapping = {
+        "#": ("#", " "),
+        " ": (" ", " "),
+        ".": (".", " "),
+        "@": (" ", "@"),
+        "+": (".", "@"),
+        "$": (" ", "$"),
+        "*": (".", "$"),
+        "!": ("!", " ")
+    }
+    for row in level_data:
+        base_row = []
+        obj_row = []
+        for ch in row:
+            if ch in mapping:
+                base_row.append(mapping[ch][0])
+                obj_row.append(mapping[ch][1])
+            else:
+                base_row.append(" ")
+                obj_row.append(" ")
+
+        base_map.append(base_row)
+        obj_map.append(obj_row)
+    return base_map, obj_map
+
+def find_player(obj_map):
+    for y, row in enumerate(obj_map):
+        for x, cell in enumerate(row):
+            if cell == "@":
+                return x, y
+    return -1, -1
+
+def draw_map(screen, base_map, obj_map, images):
+    screen.fill((128, 160, 166))
+    map_width = len(base_map[0]) * TILE_SIZE
+    map_height = len(base_map) * TILE_SIZE
+    offset_x = (SCREEN_WIDTH - map_width) // 2
+    offset_y = (SCREEN_HEIGHT - map_height) // 2
+    
+    for y in range(len(base_map)):
+        for x in range(len(base_map[0])):
+            base = base_map[y][x]
+            obj = obj_map[y][x]
+            draw_x = offset_x + x * TILE_SIZE
+            draw_y = offset_y + y * TILE_SIZE
+            if base == "!":
+                continue
+            draw_x = offset_x + x * TILE_SIZE
+            draw_y = offset_y + y * TILE_SIZE
+            if base == "#":
+                draw_tile(screen, images["#"], draw_x, draw_y)
+            else:
+                draw_tile(screen, images[" "], draw_x, draw_y)
+            if base == ".":
+                draw_tile(screen, images["."], draw_x, draw_y)
+                if obj == "$":
+                    draw_tile(screen, images["*"], draw_x, draw_y)
+                elif obj == "@":
+                    draw_tile(screen, images["+"], draw_x, draw_y)
+            elif obj.strip() != "" and obj in images:
+                draw_tile(screen, images[obj], draw_x, draw_y)
+
+def draw_ui(screen, step_counter, menu_icon, undo_icon, reset_icon, AI_icon):
+    step_text = FONT.render(f"Steps: {step_counter}", True, (0, 0, 0))
+    screen.blit(step_text, (100, 20))
+    screen.blit(menu_icon, (20,20))
+    screen.blit(AI_icon, (SCREEN_WIDTH-175,17))
+    screen.blit(undo_icon, (SCREEN_WIDTH-120,20))
+    screen.blit(reset_icon, (SCREEN_WIDTH-60,20))
+
+def draw_tile(screen, image, x, y):
+    screen.blit(image, (x, y))
 
 def draw_text_center(text, y, font):
     render = font.render(text, True, (0, 0, 0))
     rect = render.get_rect(center=(SCREEN_WIDTH // 2, y))
     screen.blit(render, rect)
 
+def draw_button(rect, label):
+    pygame.draw.rect(screen, (220, 220, 220), rect, border_radius=10)
+    pygame.draw.rect(screen, (0, 0, 0), rect, 2, border_radius=10)
+    text = pygame.font.SysFont("Arial", 20).render(label, True, (0, 0, 0))
+    screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - text.get_height() // 2))
+    
 def level_select():
     unlocked, levels = load_levels()
     buttons = []
@@ -98,100 +227,6 @@ def level_select():
                         play_level(levels[num - 1], num, unlocked)
                         return
 
-def split_maps(level_data):
-    base_map = []
-    obj_map = []
-    for row in level_data:
-        base_row = []
-        obj_row = []
-        for ch in row:
-            if ch == "!":
-                base_row.append("!")
-                obj_row.append("!")
-            elif ch == "#":
-                base_row.append("#")
-                obj_row.append(" ")
-            elif ch == ".":
-                base_row.append(".")
-                obj_row.append(" ")
-            elif ch == "@":
-                base_row.append(" ")
-                obj_row.append("@")
-            elif ch == "+":
-                base_row.append(".")
-                obj_row.append("@")
-            elif ch == "$":
-                base_row.append(" ")
-                obj_row.append("$")
-            elif ch == "*":
-                base_row.append(".")
-                obj_row.append("$")
-            else:
-                base_row.append(" ")
-                obj_row.append(" ")
-        base_map.append(base_row)
-        obj_map.append(obj_row)
-    return base_map, obj_map
-
-def find_player(obj_map):
-    for y, row in enumerate(obj_map):
-        for x, cell in enumerate(row):
-            if cell == "@":
-                return x, y
-    return -1, -1
-
-def move(base_map, obj_map, dx, dy):
-    x, y = find_player(obj_map)
-    nx, ny = x + dx, y + dy
-    nnx, nny = x + dx*2, y + dy*2
-    if obj_map[ny][nx] == " " and base_map[ny][nx] != "#":
-        obj_map[y][x] = " "
-        obj_map[ny][nx] = "@"
-    elif obj_map[ny][nx] == "$" and base_map[nny][nnx] != "#" and obj_map[nny][nnx] == " ":
-        obj_map[y][x] = " "
-        obj_map[ny][nx] = "@"
-        obj_map[nny][nnx] = "$"
-
-def is_completed(base_map, obj_map):
-    for y in range(len(base_map)):
-        for x in range(len(base_map[0])):
-            if base_map[y][x] == "." and obj_map[y][x] != "$":
-                return False
-    return True
-
-def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
-    screen.fill((128, 160, 166))
-    map_width = len(base_map[0]) * TILE_SIZE
-    map_height = len(base_map) * TILE_SIZE
-    offset_x = (SCREEN_WIDTH - map_width) // 2
-    offset_y = (SCREEN_HEIGHT - map_height) // 2
-
-    for y in range(len(base_map)):
-        for x in range(len(base_map[0])):
-            base = base_map[y][x]
-            obj = obj_map[y][x]
-
-            if base == "!":
-                continue
-
-            draw_x = offset_x + x * TILE_SIZE
-            draw_y = offset_y + y * TILE_SIZE
-
-            if base != "#":
-                screen.blit(images[" "], (draw_x, draw_y))
-            else:
-                screen.blit(images["#"], (draw_x, draw_y))
-
-            if base == ".":
-                screen.blit(images["."], (draw_x, draw_y))
-
-            if base == "." and obj == "$":
-                screen.blit(images["*"], (draw_x, draw_y))
-            elif base == "." and obj == "@":
-                screen.blit(images["+"], (draw_x, draw_y))
-            elif obj.strip() != "" and obj in images:
-                screen.blit(images[obj], (draw_x, draw_y))
-
 def show_level_complete(level_number):
     popup_width = 320
     popup_height = 220
@@ -199,33 +234,21 @@ def show_level_complete(level_number):
         (SCREEN_WIDTH - popup_width) // 2,
         (SCREEN_HEIGHT - popup_height) // 2,
         popup_width,
-        popup_height
-    )
-
+        popup_height)
     menu_rect = pygame.Rect(popup_rect.left + 20, popup_rect.bottom - 70, 80, 40)
     restart_rect = pygame.Rect(popup_rect.left + 120, popup_rect.bottom - 70, 80, 40)
     next_rect = pygame.Rect(popup_rect.left + 220, popup_rect.bottom - 70, 80, 40)
-
     while True:
         screen.fill((128, 160, 166)) 
-
         pygame.draw.rect(screen, (255, 255, 255), popup_rect, border_radius=15)
         pygame.draw.rect(screen, (0, 0, 0), popup_rect, 2, border_radius=15)
-
         title = FONT.render("LEVEL COMPLETE", True, (0, 128, 0))
         screen.blit(title, (popup_rect.centerx - title.get_width() // 2, popup_rect.top + 30))
-
         level_text = FONT.render(f"Level {level_number}", True, (0, 0, 0))
         screen.blit(level_text, (popup_rect.centerx - level_text.get_width() // 2, popup_rect.top + 80))
-
         for rect, label in [(menu_rect, "Menu"), (restart_rect, "Restart"), (next_rect, "Next")]:
-            pygame.draw.rect(screen, (220, 220, 220), rect, border_radius=10)
-            pygame.draw.rect(screen, (0, 0, 0), rect, 2, border_radius=10)
-            text = pygame.font.SysFont("Arial", 20).render(label, True, (0, 0, 0))
-            screen.blit(text, (rect.centerx - text.get_width() // 2, rect.centery - text.get_height() // 2))
-
+            draw_button(rect, label)
         pygame.display.flip()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -249,111 +272,57 @@ def show_level_complete(level_number):
 def play_level(level_data, level_number, unlocked):
     images = load_images()
     img_folder = os.path.join(os.path.dirname(__file__), "img")
-
     menu_icon = pygame.image.load(os.path.join(img_folder, "menu.png"))
-    undo_icon = pygame.image.load(os.path.join(img_folder, "undo.png"))
-    reset_icon = pygame.image.load(os.path.join(img_folder, "reset.png"))
-    AI_icon = pygame.image.load(os.path.join(img_folder, "AI.png"))
-    
     menu_icon = pygame.transform.scale(menu_icon, (40, 40))
+    undo_icon = pygame.image.load(os.path.join(img_folder, "undo.png"))
     undo_icon = pygame.transform.scale(undo_icon, (40, 40))
+    reset_icon = pygame.image.load(os.path.join(img_folder, "reset.png"))
     reset_icon = pygame.transform.scale(reset_icon, (40, 40))
+    AI_icon = pygame.image.load(os.path.join(img_folder, "AI.png"))
     AI_icon = pygame.transform.scale(AI_icon, (40, 40))
-
     base_map, obj_map = split_maps(level_data)
     clock = pygame.time.Clock()
     menu_rect = pygame.Rect(20, 20, 40, 40)
-    undo_rect = pygame.Rect(70, 20, 40, 40)
-    restart_rect = pygame.Rect(120, 20, 40, 40)
-    AI_rect = pygame.Rect(170, 20, 40, 40)
-
+    undo_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, 40, 40) 
+    restart_rect = pygame.Rect(SCREEN_WIDTH - 60, 20, 40, 40) 
+    AI_rect = pygame.Rect(SCREEN_WIDTH - 175, 20, 40, 40)
     move_history = []
-    step_counter = 0 
-
+    step_counter = 0
     completed = False
     complete_time = 0
-
     while True:
-        draw_map(screen, base_map, obj_map, images,
-                 menu_icon, undo_icon, reset_icon, AI_icon,
-                 menu_rect, undo_rect, restart_rect, AI_rect)
-
-        step_text = FONT.render(f"Steps: {step_counter}", True, (0, 0, 0))
-        screen.blit(step_text, (100, 20))
-        
-        menu_rect.topleft = (20, 20)
-        screen.blit(menu_icon, menu_rect.topleft)
-
-        undo_rect.topright = (SCREEN_WIDTH - 80, 20)
-        screen.blit(undo_icon, undo_rect.topleft)
-
-        restart_rect.topleft = (SCREEN_WIDTH - 60, 20)
-        screen.blit(reset_icon, restart_rect.topleft)
-        
-        AI_rect.topleft = (SCREEN_WIDTH - 175, 20)
-        screen.blit(AI_icon, AI_rect.topleft)
-
+        draw_map(screen, base_map, obj_map, images)
+        draw_ui(screen, step_counter, menu_icon, undo_icon, reset_icon, AI_icon)
         pygame.display.flip()
         clock.tick(60)
-
         if completed:
             if pygame.time.get_ticks() - complete_time >= 1000:
                 path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
                 if level_number == unlocked and unlocked < 25:
                     with open(path, "r", encoding="utf-8") as f:
                         lines = f.readlines()
-
                     lines[0] = str(unlocked + 1) + "\n"
-
                     with open(path, "w", encoding="utf-8") as f:
                         f.writelines(lines)
-
                 show_level_complete(level_number)
                 return
             continue
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    move(base_map, obj_map, -1, 0)
-                    move_history.append([row[:] for row in obj_map]) 
-                    step_counter += 1
-                elif event.key == pygame.K_RIGHT:
-                    move(base_map, obj_map, 1, 0)
-                    move_history.append([row[:] for row in obj_map])
-                    step_counter += 1
-                elif event.key == pygame.K_UP:
-                    move(base_map, obj_map, 0, -1)
-                    move_history.append([row[:] for row in obj_map])
-                    step_counter += 1
-                elif event.key == pygame.K_DOWN:
-                    move(base_map, obj_map, 0, 1)
-                    move_history.append([row[:] for row in obj_map])
-                    step_counter += 1
-
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = event.pos
-                if menu_rect.collidepoint(mouse_pos):
-                    level_select()
-                elif undo_rect.collidepoint(mouse_pos) and move_history:
-                    obj_map = move_history.pop() 
+                obj_map, reset_flag, move_history = handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect, move_history, base_map, obj_map, level_data)
+                if reset_flag == -1: 
                     step_counter -= 1
-                elif restart_rect.collidepoint(mouse_pos):
-                    base_map, obj_map = split_maps(level_data)
-                    move_history.clear() 
-                    step_counter = 0 
+                elif reset_flag == 0:
+                    step_counter = 0
                     completed = False
-                elif AI_rect.collidepoint(mouse_pos):
-                    level_select()
-
-        if is_completed(base_map, obj_map) and not completed:
-            completed = True
-            complete_time = pygame.time.get_ticks()
-
+            if event.type == pygame.KEYDOWN:
+                step_counter, move_history = handle_key_events(event, base_map, obj_map, step_counter, move_history)
+            if is_completed(base_map, obj_map) and not completed:
+                completed = True
+                complete_time = pygame.time.get_ticks()
 
 def instruction_screen():
     back_rect = pygame.Rect(10, 10, 50, 30)
@@ -375,7 +344,7 @@ def instruction_screen():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if back_rect.collidepoint(event.pos):
                     return
-
+                
 def main_menu():
     BIG_FONT = pygame.font.SysFont("arial", 36)
     while True:
