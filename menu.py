@@ -7,61 +7,20 @@ WIDTH, HEIGHT = 400, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Sokoban")
 FONT = pygame.font.SysFont("arial", 24)
-BIG_FONT = pygame.font.SysFont("arial", 36)
 
-def load_levels():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
 
 def draw_text_center(text, y, font, color=(0, 0, 0)):
     surface = font.render(text, True, color)
     rect = surface.get_rect(center=(WIDTH // 2, y))
     screen.blit(surface, rect)
 
-def main_menu():
-    while True:
-        screen.fill((255, 255, 255))
-        draw_text_center("SOKOBAN", 100, BIG_FONT)
-        draw_text_center("Play", 200, FONT)
-        draw_text_center("Instruction", 260, FONT)
-        draw_text_center("Quit", 320, FONT)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = event.pos
-                if 160 < y < 240:
-                    level_select()
-                elif 240 < y < 280:
-                    instruction_screen()
-                elif 300 < y < 340:
-                    pygame.quit()
-                    sys.exit()
 
-def instruction_screen():
-    back_rect = pygame.Rect(10, 10, 50, 30)
-    while True:
-        screen.fill((255, 255, 255))
-        pygame.draw.rect(screen, (200, 200, 200), back_rect)
-        pygame.draw.polygon(screen, (0, 0, 0), [(25, 25), (40, 15), (40, 35)])
-        lines = [
-            "Use arrow keys to move.",
-            "Push all boxes onto goals to win.",
-        ]
-        for i, line in enumerate(lines):
-            draw_text_center(line, 150 + i * 40, FONT)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if back_rect.collidepoint(event.pos):
-                    return
 
+def load_levels():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+    
 def level_select():
     levels = load_levels()
     unlocked = 1
