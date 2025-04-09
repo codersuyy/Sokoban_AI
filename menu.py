@@ -112,10 +112,5 @@ def play_level(level_str, level_num, unlocked):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if level_num == unlocked and unlocked < 20:
-                    with open("progress.txt", "w") as f:
-                        f.write(str(unlocked + 1))
-                return
 
 main_menu()
