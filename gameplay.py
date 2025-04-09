@@ -159,20 +159,6 @@ def is_completed(base_map, obj_map):
                 return False
     return True
 
-def draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
-    menu_rect.topleft = (20, 20)
-    screen.blit(menu_icon, menu_rect.topleft)
-
-    undo_rect.topright = (SCREEN_WIDTH - 80, 20)
-    screen.blit(undo_icon, undo_rect.topleft)
-
-    restart_rect.topleft = (SCREEN_WIDTH - 60, 20)
-    screen.blit(reset_icon, restart_rect.topleft)
-    
-    AI_rect.topleft = (SCREEN_WIDTH - 175, 20)
-    screen.blit(AI_icon, AI_rect.topleft)
-
-
 def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
     screen.fill((128, 160, 166))
     map_width = len(base_map[0]) * TILE_SIZE
@@ -205,8 +191,6 @@ def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon
                 screen.blit(images["+"], (draw_x, draw_y))
             elif obj.strip() != "" and obj in images:
                 screen.blit(images[obj], (draw_x, draw_y))
-
-    draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect)
 
 def show_level_complete(level_number):
     popup_width = 320
@@ -262,7 +246,6 @@ def show_level_complete(level_number):
                         level_select()
                     return
 
-
 def play_level(level_data, level_number, unlocked):
     images = load_images()
     img_folder = os.path.join(os.path.dirname(__file__), "img")
@@ -272,14 +255,10 @@ def play_level(level_data, level_number, unlocked):
     reset_icon = pygame.image.load(os.path.join(img_folder, "reset.png"))
     AI_icon = pygame.image.load(os.path.join(img_folder, "AI.png"))
     
-    menu_icon = pygame.transform.scale(
-        pygame.image.load(os.path.join(img_folder, "menu.png")), (40, 40))
-    undo_icon = pygame.transform.scale(
-        pygame.image.load(os.path.join(img_folder, "undo.png")), (40, 40))
-    reset_icon = pygame.transform.scale(
-        pygame.image.load(os.path.join(img_folder, "reset.png")), (40, 40))
-    AI_icon = pygame.transform.scale(
-        pygame.image.load(os.path.join(img_folder, "AI.png")), (40, 40))
+    menu_icon = pygame.transform.scale(menu_icon, (40, 40))
+    undo_icon = pygame.transform.scale(undo_icon, (40, 40))
+    reset_icon = pygame.transform.scale(reset_icon, (40, 40))
+    AI_icon = pygame.transform.scale(AI_icon, (40, 40))
 
     base_map, obj_map = split_maps(level_data)
     clock = pygame.time.Clock()
@@ -289,6 +268,8 @@ def play_level(level_data, level_number, unlocked):
     AI_rect = pygame.Rect(170, 20, 40, 40)
 
     move_history = []
+    step_counter = 0 
+
     completed = False
     complete_time = 0
 
@@ -297,14 +278,36 @@ def play_level(level_data, level_number, unlocked):
                  menu_icon, undo_icon, reset_icon, AI_icon,
                  menu_rect, undo_rect, restart_rect, AI_rect)
 
+        step_text = FONT.render(f"Steps: {step_counter}", True, (0, 0, 0))
+        screen.blit(step_text, (100, 20))
+        
+        menu_rect.topleft = (20, 20)
+        screen.blit(menu_icon, menu_rect.topleft)
+
+        undo_rect.topright = (SCREEN_WIDTH - 80, 20)
+        screen.blit(undo_icon, undo_rect.topleft)
+
+        restart_rect.topleft = (SCREEN_WIDTH - 60, 20)
+        screen.blit(reset_icon, restart_rect.topleft)
+        
+        AI_rect.topleft = (SCREEN_WIDTH - 175, 20)
+        screen.blit(AI_icon, AI_rect.topleft)
+
         pygame.display.flip()
         clock.tick(60)
 
         if completed:
             if pygame.time.get_ticks() - complete_time >= 1000:
+                path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
                 if level_number == unlocked and unlocked < 25:
-                    with open("progress.txt", "w") as f:
-                        f.write(str(unlocked + 1))
+                    with open(path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+
+                    lines[0] = str(unlocked + 1) + "\n"
+
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+
                 show_level_complete(level_number)
                 return
             continue
@@ -317,23 +320,32 @@ def play_level(level_data, level_number, unlocked):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
                     move(base_map, obj_map, -1, 0)
+                    move_history.append([row[:] for row in obj_map]) 
+                    step_counter += 1
                 elif event.key == pygame.K_RIGHT:
                     move(base_map, obj_map, 1, 0)
+                    move_history.append([row[:] for row in obj_map])
+                    step_counter += 1
                 elif event.key == pygame.K_UP:
                     move(base_map, obj_map, 0, -1)
+                    move_history.append([row[:] for row in obj_map])
+                    step_counter += 1
                 elif event.key == pygame.K_DOWN:
                     move(base_map, obj_map, 0, 1)
+                    move_history.append([row[:] for row in obj_map])
+                    step_counter += 1
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = event.pos
                 if menu_rect.collidepoint(mouse_pos):
                     level_select()
                 elif undo_rect.collidepoint(mouse_pos) and move_history:
-                    last_state = move_history.pop()
-                    obj_map = [row[:] for row in last_state]
+                    obj_map = move_history.pop() 
+                    step_counter -= 1
                 elif restart_rect.collidepoint(mouse_pos):
                     base_map, obj_map = split_maps(level_data)
-                    move_history.clear()
+                    move_history.clear() 
+                    step_counter = 0 
                     completed = False
                 elif AI_rect.collidepoint(mouse_pos):
                     level_select()
@@ -341,6 +353,7 @@ def play_level(level_data, level_number, unlocked):
         if is_completed(base_map, obj_map) and not completed:
             completed = True
             complete_time = pygame.time.get_ticks()
+
 
 def instruction_screen():
     back_rect = pygame.Rect(10, 10, 50, 30)
@@ -385,6 +398,5 @@ def main_menu():
                 elif 300 < y < 340:
                     pygame.quit()
                     sys.exit()
-
 
 main_menu()
