@@ -10,7 +10,7 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Sokoban")
 FONT = pygame.font.SysFont("Arial", 30)
 
-TILE_SIZE = 65
+TILE_SIZE = 60
 
 SYMBOLS = {
     "#": "wall.png",
@@ -159,13 +159,21 @@ def is_completed(base_map, obj_map):
                 return False
     return True
 
-def draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, menu_rect, undo_rect, restart_rect):
+def draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
+    menu_rect.topleft = (20, 20)
     screen.blit(menu_icon, menu_rect.topleft)
+
+    undo_rect.topright = (SCREEN_WIDTH - 80, 20)
     screen.blit(undo_icon, undo_rect.topleft)
+
+    restart_rect.topleft = (SCREEN_WIDTH - 60, 20)
     screen.blit(reset_icon, restart_rect.topleft)
+    
+    AI_rect.topleft = (SCREEN_WIDTH - 175, 20)
+    screen.blit(AI_icon, AI_rect.topleft)
 
 
-def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon, menu_rect, undo_rect, restart_rect):
+def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
     screen.fill((128, 160, 166))
     map_width = len(base_map[0]) * TILE_SIZE
     map_height = len(base_map) * TILE_SIZE
@@ -198,7 +206,7 @@ def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon
             elif obj.strip() != "" and obj in images:
                 screen.blit(images[obj], (draw_x, draw_y))
 
-    draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, menu_rect, undo_rect, restart_rect)
+    draw_nav_bar(screen, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect)
 
 def show_level_complete(level_number):
     popup_width = 320
@@ -262,6 +270,7 @@ def play_level(level_data, level_number, unlocked):
     menu_icon = pygame.image.load(os.path.join(img_folder, "menu.png"))
     undo_icon = pygame.image.load(os.path.join(img_folder, "undo.png"))
     reset_icon = pygame.image.load(os.path.join(img_folder, "reset.png"))
+    AI_icon = pygame.image.load(os.path.join(img_folder, "AI.png"))
     
     menu_icon = pygame.transform.scale(
         pygame.image.load(os.path.join(img_folder, "menu.png")), (40, 40))
@@ -269,13 +278,15 @@ def play_level(level_data, level_number, unlocked):
         pygame.image.load(os.path.join(img_folder, "undo.png")), (40, 40))
     reset_icon = pygame.transform.scale(
         pygame.image.load(os.path.join(img_folder, "reset.png")), (40, 40))
-
+    AI_icon = pygame.transform.scale(
+        pygame.image.load(os.path.join(img_folder, "AI.png")), (40, 40))
 
     base_map, obj_map = split_maps(level_data)
     clock = pygame.time.Clock()
     menu_rect = pygame.Rect(20, 20, 40, 40)
     undo_rect = pygame.Rect(70, 20, 40, 40)
     restart_rect = pygame.Rect(120, 20, 40, 40)
+    AI_rect = pygame.Rect(170, 20, 40, 40)
 
     move_history = []
     completed = False
@@ -283,8 +294,8 @@ def play_level(level_data, level_number, unlocked):
 
     while True:
         draw_map(screen, base_map, obj_map, images,
-                 menu_icon, undo_icon, reset_icon,
-                 menu_rect, undo_rect, restart_rect)
+                 menu_icon, undo_icon, reset_icon, AI_icon,
+                 menu_rect, undo_rect, restart_rect, AI_rect)
 
         pygame.display.flip()
         clock.tick(60)
@@ -324,6 +335,8 @@ def play_level(level_data, level_number, unlocked):
                     base_map, obj_map = split_maps(level_data)
                     move_history.clear()
                     completed = False
+                elif AI_rect.collidepoint(mouse_pos):
+                    level_select()
 
         if is_completed(base_map, obj_map) and not completed:
             completed = True
