@@ -71,5 +71,3 @@ def play_level(level_str, level_num, unlocked):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
-main_menu()
