@@ -1,102 +1,144 @@
 import pygame
 import sys
-import os
 
-pygame.init()
-screen = pygame.display.set_mode((400, 600))
-pygame.display.set_caption("Sokoban")
+TILE_SIZE = 48
+FONT_NAME = "freesansbold.ttf"
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (150, 150, 150)
-DARK_GRAY = (90, 90, 90)
-GREEN = (100, 200, 100)
-BLUE = (40, 40, 200)
+SYMBOLS = {
+    "#": "wall.png",
+    " ": "floor.png",
+    ".": "goal.png",
+    "@": "player.png",
+    "+": "player_on_goal.png",
+    "$": "box.png",
+    "*": "box_on_goal.png"
+}
 
-font_title = pygame.font.SysFont(None, 40)
-font_number = pygame.font.SysFont(None, 28)
-font_back = pygame.font.SysFont(None, 30)
+def load_levels(filename):
+    with open(filename, "r") as f:
+        raw = f.read()
+    raw_levels = raw.strip().split("--")
+    levels = []
+    for level in raw_levels:
+        rows = level.strip().splitlines()
+        max_len = max(len(row) for row in rows)
+        rows = [row.ljust(max_len) for row in rows]
+        levels.append(rows)
+    return levels
 
-level_rects = []
-unlocked_levels = 1
-total_levels = 0
-levels_data = []
+def split_maps(level_data):
+    base_map = []
+    obj_map = []
+    for row in level_data:
+        base_row = []
+        obj_row = []
+        for ch in row:
+            if ch == "#":
+                base_row.append("#")
+                obj_row.append(" ")
+            elif ch == ".":
+                base_row.append(".")
+                obj_row.append(" ")
+            elif ch == "@":
+                base_row.append(" ")
+                obj_row.append("@")
+            elif ch == "+":
+                base_row.append(".")
+                obj_row.append("@")
+            elif ch == "$":
+                base_row.append(" ")
+                obj_row.append("$")
+            elif ch == "*":
+                base_row.append(".")
+                obj_row.append("$")
+            else:
+                base_row.append(" ")
+                obj_row.append(" ")
+        base_map.append(base_row)
+        obj_map.append(obj_row)
+    return base_map, obj_map
 
-if os.path.exists("levels.txt"):
-    with open("levels.txt", "r") as f:
-        levels_data = [line.strip() for line in f if line.strip()]
-    total_levels = len(levels_data)
-else:
-    print("Missing levels.txt")
-    pygame.quit()
-    sys.exit()
+def find_player(obj_map):
+    for y, row in enumerate(obj_map):
+        for x, val in enumerate(row):
+            if val == "@":
+                return x, y
+    return -1, -1
 
-def draw_level_selection(highlighted=None, back_hover=False):
-    screen.fill(WHITE)
-    title = font_title.render("Select Level", True, BLACK)
-    screen.blit(title, (screen.get_width() // 2 - title.get_width() // 2, 40))
-    level_rects.clear()
-    start_x = 40
-    start_y = 100
-    size = 50
-    margin = 10
-    cols = 5
-    for i in range(total_levels):
-        row = i // cols
-        col = i % cols
-        x = start_x + col * (size + margin)
-        y = start_y + row * (size + margin)
-        if i + 1 <= unlocked_levels:
-            color = GREEN if i == highlighted else WHITE
-            border = BLACK
-        else:
-            color = GRAY
-            border = DARK_GRAY
-        pygame.draw.rect(screen, color, (x, y, size, size))
-        pygame.draw.rect(screen, border, (x, y, size, size), 2)
-        label = font_number.render(str(i + 1), True, BLACK)
-        screen.blit(label, (x + size // 2 - label.get_width() // 2, y + size // 2 - label.get_height() // 2))
-        level_rects.append(pygame.Rect(x, y, size, size))
-    back_text = font_back.render("← Back", True, BLUE if back_hover else BLACK)
-    screen.blit(back_text, (20, screen.get_height() - 50))
-    global back_rect
-    back_rect = pygame.Rect(20, screen.get_height() - 50, back_text.get_width(), back_text.get_height())
-    pygame.display.flip()
+def is_completed(base_map, obj_map):
+    for y in range(len(base_map)):
+        for x in range(len(base_map[0])):
+            if base_map[y][x] == "." and obj_map[y][x] != "$":
+                return False
+    return True
 
-def select_level():
-    current_hover = None
-    back_hover = False
-    draw_level_selection()
-    while True:
-        event = pygame.event.wait()
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.MOUSEMOTION:
-            hover_index = None
-            for i, rect in enumerate(level_rects):
-                if rect.collidepoint(event.pos):
-                    hover_index = i if i + 1 <= unlocked_levels else None
-                    break
-            back_hover = back_rect.collidepoint(event.pos)
-            if hover_index != current_hover:
-                current_hover = hover_index
-                draw_level_selection(current_hover, back_hover)
-            elif back_rect.collidepoint(event.pos) != back_hover:
-                draw_level_selection(current_hover, back_hover)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                if back_rect.collidepoint(event.pos):
-                    break
-                for i, rect in enumerate(level_rects):
-                    if rect.collidepoint(event.pos) and i + 1 <= unlocked_levels:
-                        print(f"Playing level {i + 1}: {levels_data[i]}")
-                        complete_level(i)
+def draw_map(screen, base_map, obj_map, images):
+    for y in range(len(base_map)):
+        for x in range(len(base_map[0])):
+            base = base_map[y][x]
+            obj = obj_map[y][x]
+            if base == "." and obj == "$":
+                img = images["*"]
+            elif base == "." and obj == "@":
+                img = images["+"]
+            elif obj in images:
+                img = images[obj]
+            else:
+                img = images.get(base, images[" "])
+            screen.blit(img, (x * TILE_SIZE, y * TILE_SIZE))
 
-def complete_level(index):
-    global unlocked_levels
-    if index + 2 > unlocked_levels and index + 1 < total_levels:
-        unlocked_levels = index + 2
-    select_level()
+def move_player(base_map, obj_map, dx, dy):
+    x, y = find_player(obj_map)
+    nx, ny = x + dx, y + dy
+    nnx, nny = x + dx * 2, y + dy * 2
+    target = obj_map[ny][nx]
+    if target == " ":
+        obj_map[y][x] = " "
+        obj_map[ny][nx] = "@"
+    elif target == "$":
+        if obj_map[nny][nnx] == " " and base_map[nny][nnx] != "#":
+            obj_map[y][x] = " "
+            obj_map[ny][nx] = "@"
+            obj_map[nny][nnx] = "$"
 
-select_level()
+def play_level(level_data):
+    pygame.init()
+    base_map, obj_map = split_maps(level_data)
+    width, height = len(base_map[0]), len(base_map)
+    screen = pygame.display.set_mode((width * TILE_SIZE, height * TILE_SIZE))
+    pygame.display.set_caption("Sokoban")
+    clock = pygame.time.Clock()
+
+    images = {}
+    for k, filename in SYMBOLS.items():
+        path = "img/" + filename
+        images[k] = pygame.transform.scale(pygame.image.load(path), (TILE_SIZE, TILE_SIZE))
+
+    running = True
+    while running:
+        screen.fill((0, 0, 0))
+        draw_map(screen, base_map, obj_map, images)
+        pygame.display.flip()
+
+        if is_completed(base_map, obj_map):
+            pygame.time.wait(500)
+            return
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_LEFT, pygame.K_a]:
+                    move_player(base_map, obj_map, -1, 0)
+                elif event.key in [pygame.K_RIGHT, pygame.K_d]:
+                    move_player(base_map, obj_map, 1, 0)
+                elif event.key in [pygame.K_UP, pygame.K_w]:
+                    move_player(base_map, obj_map, 0, -1)
+                elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                    move_player(base_map, obj_map, 0, 1)
+        clock.tick(60)
+
+if __name__ == "__main__":
+    levels = load_levels("levels.txt")
+    play_level(levels[0])
