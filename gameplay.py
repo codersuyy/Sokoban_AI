@@ -147,10 +147,13 @@ def move(base_map, obj_map, dx, dy):
     if obj_map[ny][nx] == " " and base_map[ny][nx] != "#":
         obj_map[y][x] = " "
         obj_map[ny][nx] = "@"
+        return True
     elif obj_map[ny][nx] == "$" and base_map[nny][nnx] != "#" and obj_map[nny][nnx] == " ":
         obj_map[y][x] = " "
         obj_map[ny][nx] = "@"
         obj_map[nny][nnx] = "$"
+        return True
+    return False
 
 def is_completed(base_map, obj_map):
     for y in range(len(base_map)):
@@ -159,7 +162,7 @@ def is_completed(base_map, obj_map):
                 return False
     return True
 
-def draw_map(screen, base_map, obj_map, images, menu_icon, undo_icon, reset_icon, AI_icon, menu_rect, undo_rect, restart_rect, AI_rect):
+def draw_map(screen, base_map, obj_map, images):
     screen.fill((128, 160, 166))
     map_width = len(base_map[0]) * TILE_SIZE
     map_height = len(base_map) * TILE_SIZE
@@ -274,9 +277,7 @@ def play_level(level_data, level_number, unlocked):
     complete_time = 0
 
     while True:
-        draw_map(screen, base_map, obj_map, images,
-                 menu_icon, undo_icon, reset_icon, AI_icon,
-                 menu_rect, undo_rect, restart_rect, AI_rect)
+        draw_map(screen, base_map, obj_map, images)
 
         step_text = FONT.render(f"Steps: {step_counter}", True, (0, 0, 0))
         screen.blit(step_text, (100, 20))
@@ -318,23 +319,20 @@ def play_level(level_data, level_number, unlocked):
                 sys.exit()
 
             if event.type == pygame.KEYDOWN:
+                move_made = False
                 if event.key == pygame.K_LEFT:
-                    move(base_map, obj_map, -1, 0)
-                    move_history.append([row[:] for row in obj_map]) 
-                    step_counter += 1
+                    move_made = move(base_map, obj_map, -1, 0)
                 elif event.key == pygame.K_RIGHT:
-                    move(base_map, obj_map, 1, 0)
-                    move_history.append([row[:] for row in obj_map])
-                    step_counter += 1
+                    move_made = move(base_map, obj_map, 1, 0)
                 elif event.key == pygame.K_UP:
-                    move(base_map, obj_map, 0, -1)
-                    move_history.append([row[:] for row in obj_map])
-                    step_counter += 1
+                    move_made = move(base_map, obj_map, 0, -1)
                 elif event.key == pygame.K_DOWN:
-                    move(base_map, obj_map, 0, 1)
+                    move_made = move(base_map, obj_map, 0, 1)
+
+                if move_made:
                     move_history.append([row[:] for row in obj_map])
                     step_counter += 1
-
+                    
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = event.pos
                 if menu_rect.collidepoint(mouse_pos):
