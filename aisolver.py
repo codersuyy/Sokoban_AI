@@ -2,43 +2,10 @@ import heapq
 from collections import deque
 import copy
 
-# ======== Helper functions ===========
 def read_levels(filename):
     with open(filename, 'r') as f:
         content = f.read()
     return [level.splitlines() for level in content.strip().split('\n\n')]
-
-def parse_map(raw_map):
-    base_map = []
-    obj_map = []
-    for line in raw_map:
-        base_line = ""
-        obj_line = ""
-        for ch in line:
-            if ch in "# ":
-                base_line += ch
-                obj_line += ' '
-            elif ch == ".":
-                base_line += '.'
-                obj_line += ' '
-            elif ch == "@":
-                base_line += ' '
-                obj_line += '@'
-            elif ch == "+":
-                base_line += '.'
-                obj_line += '@'
-            elif ch == "$":
-                base_line += ' '
-                obj_line += '$'
-            elif ch == "*":
-                base_line += '.'
-                obj_line += '$'
-            else:
-                base_line += ' '
-                obj_line += ' '
-        base_map.append(base_line)
-        obj_map.append(obj_line)
-    return base_map, obj_map
 
 def find_player_and_boxes(obj_map):
     boxes = set()
@@ -95,7 +62,6 @@ def a_star_solver(base_map, obj_map):
             new_player = (dy, dx)
 
             if new_player in boxes:
-                # box move
                 by, bx = dy + (dy - player[0]), dx + (dx - player[1])
                 if is_free(by, bx, base_map, boxes):
                     new_boxes = set(boxes)
@@ -106,19 +72,9 @@ def a_star_solver(base_map, obj_map):
                         h = heuristic(new_boxes, base_map)
                         heapq.heappush(heap, (cost + h, cost, new_player, frozenset(new_boxes), path + move))
             else:
-                # normal move
                 if is_free(dy, dx, base_map, boxes):
                     if (new_player, boxes) not in visited:
                         cost = g + 1
                         h = heuristic(boxes, base_map)
                         heapq.heappush(heap, (cost + h, cost, new_player, boxes, path + move))
     return "No solution"
-
-# ========= MAIN TEST ============
-if __name__ == "__main__":
-    level_list = read_levels("AI/Sokoban_AI/levels.txt")
-    level_index = 8  # bạn có thể đổi số level ở đây
-
-    base_map, obj_map = parse_map(level_list[level_index])
-    solution = a_star_solver(base_map, obj_map)
-    print("Giải pháp:", solution)
