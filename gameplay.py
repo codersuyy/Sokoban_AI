@@ -1,6 +1,8 @@
 import pygame
 import sys
 import os
+from collections import deque
+from aisolver import a_star_solver
 
 pygame.init()
 
@@ -19,6 +21,7 @@ SYMBOLS = {
     "$": "box.png",
     "*": "box_on_goal.png",
 }
+current_level = ""
 
 def load_images():
     images = {}
@@ -56,8 +59,15 @@ def handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect, move
         move_history.clear()
         return obj_map, 0, move_history
     elif AI_rect.collidepoint(event.pos):
-        level_select()
-    return obj_map, None, move_history
+        # base_map, obj_map = split_maps(current_level)
+        # print(a_star_solver(base_map, obj_map))
+        path = ai_solve(base_map, obj_map)
+        if path:
+            move_chars = " ".join([step[2] for step in path])
+            print(move_chars)
+        else:
+            print("Không tìm thấy giải pháp.")
+    return obj_map, 0, move_history
 
 def handle_key_events(event, base_map, obj_map, step_counter, move_history):
     move_made = False
@@ -268,8 +278,38 @@ def show_level_complete(level_number):
                     else:
                         level_select()
                     return
+            
+def ai_solve(base_map, obj_map):
+    def serialize(obj_map):
+        return tuple(tuple(row) for row in obj_map)
+
+    def get_moves():
+        return [(-1, 0, "L"), (1, 0, "R"), (0, -1, "U"), (0, 1, "D")]
+
+    visited = set()
+    queue = deque()
+    queue.append((obj_map, []))
+    visited.add(serialize(obj_map))
+
+    while queue:
+        state, path = queue.popleft()
+        if is_completed(base_map, state):
+            return path
+
+        for dx, dy, move_char in get_moves():
+            new_state = [row[:] for row in state]
+            dummy_history = []
+            moved, _ = move(base_map, new_state, dx, dy, dummy_history)
+            if moved:
+                s = serialize(new_state)
+                if s not in visited:
+                    visited.add(s)
+                    queue.append((new_state, path + [(dx, dy, move_char)]))
+    return None
 
 def play_level(level_data, level_number, unlocked):
+    global current_level
+    current_level = level_data
     images = load_images()
     img_folder = os.path.join(os.path.dirname(__file__), "img")
     menu_icon = pygame.image.load(os.path.join(img_folder, "menu.png"))
