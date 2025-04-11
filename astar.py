@@ -1,11 +1,5 @@
 import heapq
 from collections import deque
-import copy
-
-def read_levels(filename):
-    with open(filename, 'r') as f:
-        content = f.read()
-    return [level.splitlines() for level in content.strip().split('\n\n')]
 
 def find_player_and_boxes(obj_map):
     boxes = set()
@@ -42,8 +36,7 @@ def get_neighbors(pos):
 def is_free(y, x, base_map, boxes):
     return base_map[y][x] != '#' and (y, x) not in boxes
 
-# ========= A* Solver =============
-def a_star_solver(base_map, obj_map):
+def astar(base_map, obj_map):
     start_player, start_boxes = find_player_and_boxes(obj_map)
     visited = set()
     heap = []
