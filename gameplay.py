@@ -1,8 +1,8 @@
 import pygame
 import sys
 import os
-from collections import deque
-from aisolver import a_star_solver
+from astar import astar
+from bfs import bfs
 
 pygame.init()
 
@@ -12,6 +12,7 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Sokoban")
 FONT = pygame.font.SysFont("Arial", 30)
 TILE_SIZE = 60
+ICON_SIZE = (40, 40)
 SYMBOLS = {
     "#": "wall.png",
     " ": "floor.png",
@@ -29,6 +30,10 @@ def load_images():
         path = os.path.join(os.path.dirname(__file__), "img", filename)
         images[symbol] = pygame.transform.scale(pygame.image.load(path), (TILE_SIZE, TILE_SIZE))
     return images
+
+def load_icon(name):
+    path = os.path.join(os.path.dirname(__file__), "img", name)
+    return pygame.transform.scale(pygame.image.load(path), ICON_SIZE)
 
 def load_levels():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
@@ -48,26 +53,53 @@ def load_levels():
         levels.append(current)
     return unlocked, levels
 
-def handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect, move_history, base_map, obj_map, level_data):
+def letaiplay(path, ai_index, base_map, obj_map, move_history, step_counter):
+    move_made = False
+    if ai_index < len(path):
+        direction = path[ai_index]
+        if direction == 'L':
+            move_made, move_history = move(base_map, obj_map, -1, 0, move_history)
+        elif direction == 'R':
+            move_made, move_history = move(base_map, obj_map, 1, 0, move_history)
+        elif direction == 'U':
+            move_made, move_history = move(base_map, obj_map, 0, -1, move_history)
+        elif direction == 'D':
+            move_made, move_history = move(base_map, obj_map, 0, 1, move_history)
+        if move_made:
+            step_counter += 1
+            ai_index += 1
+    return ai_index, move_history, step_counter, obj_map
+
+def handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect,
+                        move_history, base_map, obj_map, level_data,
+                        step_counter, ai_path, ai_index, ai_running):
     if menu_rect.collidepoint(event.pos):
         level_select()
+        return obj_map, step_counter, move_history, ai_path, ai_index, False
+
     elif undo_rect.collidepoint(event.pos) and move_history:
-        obj_map = move_history.pop() 
-        return obj_map, -1, move_history 
+        obj_map = move_history.pop()
+        step_counter -= 1
+
     elif restart_rect.collidepoint(event.pos):
         base_map, obj_map = split_maps(level_data)
         move_history.clear()
-        return obj_map, 0, move_history
+        step_counter = 0
+        ai_path = []
+        ai_index = 0
+        ai_running = False
+
     elif AI_rect.collidepoint(event.pos):
-        # base_map, obj_map = split_maps(current_level)
-        # print(a_star_solver(base_map, obj_map))
-        path = ai_solve(base_map, obj_map)
-        if path:
-            move_chars = " ".join([step[2] for step in path])
-            print(move_chars)
-        else:
-            print("Không tìm thấy giải pháp.")
-    return obj_map, 0, move_history
+        if not ai_running:
+            result = bfs(base_map, obj_map)
+            if isinstance(result, list):
+                ai_path = [step[2] for step in result]
+                ai_index = 0
+                ai_running = True
+            else:
+                print("AI không tìm được đường đi.")
+
+    return obj_map, step_counter, move_history, ai_path, ai_index, ai_running
 
 def handle_key_events(event, base_map, obj_map, step_counter, move_history):
     move_made = False
@@ -278,65 +310,40 @@ def show_level_complete(level_number):
                     else:
                         level_select()
                     return
-            
-def ai_solve(base_map, obj_map):
-    def serialize(obj_map):
-        return tuple(tuple(row) for row in obj_map)
-
-    def get_moves():
-        return [(-1, 0, "L"), (1, 0, "R"), (0, -1, "U"), (0, 1, "D")]
-
-    visited = set()
-    queue = deque()
-    queue.append((obj_map, []))
-    visited.add(serialize(obj_map))
-
-    while queue:
-        state, path = queue.popleft()
-        if is_completed(base_map, state):
-            return path
-
-        for dx, dy, move_char in get_moves():
-            new_state = [row[:] for row in state]
-            dummy_history = []
-            moved, _ = move(base_map, new_state, dx, dy, dummy_history)
-            if moved:
-                s = serialize(new_state)
-                if s not in visited:
-                    visited.add(s)
-                    queue.append((new_state, path + [(dx, dy, move_char)]))
-    return None
 
 def play_level(level_data, level_number, unlocked):
     global current_level
     current_level = level_data
     images = load_images()
-    img_folder = os.path.join(os.path.dirname(__file__), "img")
-    menu_icon = pygame.image.load(os.path.join(img_folder, "menu.png"))
-    menu_icon = pygame.transform.scale(menu_icon, (40, 40))
-    undo_icon = pygame.image.load(os.path.join(img_folder, "undo.png"))
-    undo_icon = pygame.transform.scale(undo_icon, (40, 40))
-    reset_icon = pygame.image.load(os.path.join(img_folder, "reset.png"))
-    reset_icon = pygame.transform.scale(reset_icon, (40, 40))
-    AI_icon = pygame.image.load(os.path.join(img_folder, "AI.png"))
-    AI_icon = pygame.transform.scale(AI_icon, (40, 40))
+    menu_icon = load_icon("menu.png")
+    undo_icon = load_icon("undo.png")
+    reset_icon = load_icon("reset.png")
+    AI_icon = load_icon("AI.png")
+    
     base_map, obj_map = split_maps(level_data)
     clock = pygame.time.Clock()
-    menu_rect = pygame.Rect(20, 20, 40, 40)
-    undo_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, 40, 40) 
-    restart_rect = pygame.Rect(SCREEN_WIDTH - 60, 20, 40, 40) 
-    AI_rect = pygame.Rect(SCREEN_WIDTH - 175, 20, 40, 40)
-    move_history = []
-    step_counter = 0
-    completed = False
-    complete_time = 0
+
+    menu_rect = pygame.Rect(20, 20, *ICON_SIZE)
+    AI_rect = pygame.Rect(SCREEN_WIDTH - 175, 20, *ICON_SIZE)
+    undo_rect = pygame.Rect(SCREEN_WIDTH - 120, 20, *ICON_SIZE)
+    restart_rect = pygame.Rect(SCREEN_WIDTH - 60, 20, *ICON_SIZE)
+
+    move_history, ai_path = [], []
+    step_counter = ai_index = complete_time =0
+    ai_running = completed = False
+
     while True:
         draw_map(screen, base_map, obj_map, images)
         draw_ui(screen, step_counter, menu_icon, undo_icon, reset_icon, AI_icon)
         pygame.display.flip()
         clock.tick(60)
+        if ai_running and ai_index < len(ai_path):
+            pygame.time.delay(100)
+            ai_index, move_history, step_counter, obj_map = letaiplay(ai_path, ai_index, base_map, obj_map, move_history, step_counter)
+        elif ai_running and ai_index >= len(ai_path):
+            ai_running = False
         if completed:
-            if pygame.time.get_ticks() - complete_time >= 1000:
+            if pygame.time.get_ticks() - complete_time >= 500:
                 path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.txt")
                 if level_number == unlocked and unlocked < 25:
                     with open(path, "r", encoding="utf-8") as f:
@@ -352,11 +359,10 @@ def play_level(level_data, level_number, unlocked):
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                obj_map, reset_flag, move_history = handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect, move_history, base_map, obj_map, level_data)
-                if reset_flag == -1: 
-                    step_counter -= 1
-                elif reset_flag == 0:
-                    step_counter = 0
+                obj_map, step_counter, move_history, ai_path, ai_index, ai_running = handle_mouse_events(
+                event, menu_rect, undo_rect, restart_rect, AI_rect,
+                move_history, base_map, obj_map, level_data, step_counter, ai_path, ai_index, ai_running)
+                if step_counter == 0:
                     completed = False
             if event.type == pygame.KEYDOWN:
                 step_counter, move_history = handle_key_events(event, base_map, obj_map, step_counter, move_history)
