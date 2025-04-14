@@ -91,9 +91,10 @@ def handle_mouse_events(event, menu_rect, undo_rect, restart_rect, AI_rect,
 
     elif AI_rect.collidepoint(event.pos):
         if not ai_running:
-            result = bfs(base_map, obj_map)
-            if isinstance(result, list):
-                ai_path = [step[2] for step in result]
+            bfs_result = bfs(base_map, obj_map)
+            astar_result = astar(base_map, obj_map)
+            if isinstance(bfs_result, list):
+                ai_path = [step[2] for step in bfs_result]
                 ai_index = 0
                 ai_running = True
             else:

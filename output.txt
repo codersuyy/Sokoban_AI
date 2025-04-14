@@ -1,0 +1,13 @@
+===== BFS Result =====
+Solution: DLLULDRRRULULDRDLULLUR
+Steps: 22
+Nodes Generated: 2695
+Nodes Repeated: 3522
+Duration: 0.191163 seconds
+
+===== A* Result =====
+Solution: DLLULDRRRULULDRDLULLUR
+Steps: 22
+Nodes Generated: 2250
+Nodes Repeated: 372
+Duration: 0.016545 seconds

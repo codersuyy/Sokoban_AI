@@ -1,4 +1,7 @@
 from collections import deque
+import time
+import copy
+import os
 
 def is_completed(base_map, obj_map):
     for y in range(len(base_map)):
@@ -38,20 +41,43 @@ def bfs(base_map, obj_map):
 
     visited = set()
     queue = deque()
-    queue.append((obj_map, []))
-    visited.add(serialize(obj_map))
+    start_time = time.time()
+
+    initial_state = copy.deepcopy(obj_map)
+    queue.append((initial_state, []))
+    visited.add(serialize(initial_state))
+
+    node_generated = 1
+    node_repeated = 0
 
     while queue:
         state, path = queue.popleft()
         if is_completed(base_map, state):
+            duration = time.time() - start_time
+            write_bfs_output(path, node_generated, node_repeated, duration)
             return path
 
         for dx, dy, move_char in get_moves():
-            new_state = [row[:] for row in state]
+            new_state = copy.deepcopy(state)
             moved = move(base_map, new_state, dx, dy)
             if moved:
                 s = serialize(new_state)
                 if s not in visited:
                     visited.add(s)
                     queue.append((new_state, path + [(dx, dy, move_char)]))
-    return "No Solution"
+                    node_generated += 1
+                else:
+                    node_repeated += 1
+
+    duration = time.time() - start_time
+    return None
+
+def write_bfs_output(path, node_generated, node_repeated, duration):
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output.txt")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("===== BFS Result =====\n")
+        f.write("Solution: {}\n".format("".join(move for _, _, move in path)))
+        f.write("Steps: {}\n".format(len(path)))
+        f.write("Nodes Generated: {}\n".format(node_generated))
+        f.write("Nodes Repeated: {}\n".format(node_repeated))
+        f.write("Duration: {:.6f} seconds\n".format(duration))
